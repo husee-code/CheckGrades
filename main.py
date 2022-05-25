@@ -1,5 +1,3 @@
-import types
-
 from aiogram import Bot
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.contrib.middlewares.logging import LoggingMiddleware
@@ -33,12 +31,17 @@ class States(StatesGroup):
     INPUT_GRADES = State()
 
 
+def clear_input(grades: str):
+    grades = " ".join(list(map(lambda x: (x[0]), list(grades.rsplit()))))
+    return grades
+
+
 def get_grades(grades: str):
-    return " ".join(grades.split())
+    return " ".join(grades.rsplit())
 
 
 def get_average(grades: str):
-    grades = list(map(int, grades.split()))
+    grades = list(map(int, grades.rsplit()))
     return round(sum(grades)/len(grades), 2)
 
 
@@ -60,8 +63,9 @@ async def start(message: types.Message, state:FSMContext):
 async def input_grades(message: types.Message, state: FSMContext):
     user_data = await state.get_data()
     msg_to_edit = user_data['msg']
-    await state.update_data(grades=message.text)
-    await msg_to_edit.edit_text(pattern.format(get_grades(message.text), get_average(message.text)),
+    grades = clear_input(message.text)
+    await state.update_data(grades=grades)
+    await msg_to_edit.edit_text(pattern.format(get_grades(grades), get_average(grades)),
                                 parse_mode='Markdown', reply_markup=numbers_kb)
 
     await message.delete()
@@ -81,7 +85,7 @@ async def cb_input_grades(callback: types.CallbackQuery, state: FSMContext):
                                     reply_markup=numbers_kb)
     elif callback.data == 'remove':
         if len(grades) > 1:
-            grades = get_grades(" ".join(grades.split()[:-1]))
+            grades = get_grades(" ".join(grades.rsplit()[:-1]))
             await state.update_data(grades=grades)
             await msg_to_edit.edit_text(pattern.format(get_grades(grades), get_average(grades)),
                                         reply_markup=numbers_kb)
