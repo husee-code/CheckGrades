@@ -6,6 +6,7 @@ from aiogram.utils import executor
 from aiogram import types
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from PIL import Image
 
 bot = Bot("5309903930:AAEnmmrAKVBvzhtVII5putyBM4QaVJ_KPW8")
 storage = MemoryStorage()
@@ -14,8 +15,12 @@ dp = Dispatcher(bot, storage=storage)
 
 dp.middleware.setup(LoggingMiddleware())
 
+
 greet_text = 'Бот считает средний балл по оценкам. Отправьте текстом (через пробел), либо нажимайте по кнопкам'
-pattern = 'Оценки: \n{}\nСредний балл: {}'
+pattern = 'Оценки: ```\n{}```\nСредний балл: {}'
+path_pattern = 'C:\\Users\\school\\Documents\\10И Тарасов Антон\\aye\\photo\\{}.jpg'
+
+
 numbers_kb = InlineKeyboardMarkup(row_width=2).add(
     InlineKeyboardButton(text='2', callback_data='2'),
     InlineKeyboardButton(text='3', callback_data='3'),
@@ -42,20 +47,24 @@ def get_grades(grades: str):
 
 def get_average(grades: str):
     grades = list(map(int, grades.rsplit()))
-    return round(sum(grades)/len(grades), 2)
+    return round(sum(grades) / len(grades), 2)
 
 
-async def remove_all(state:FSMContext, msg_to_edit:types.Message):
+def get_grades_from_photo(path: str) -> str:
+    img = Image.open(path)
+    return ''
+
+
+async def remove_all(state: FSMContext, msg_to_edit: types.Message):
     await state.update_data(grades='')
     await msg_to_edit.edit_text('Оценки:\n', reply_markup=numbers_kb)
 
 
 @dp.message_handler(commands=['start', 'help'], state='*')
-async def start(message: types.Message, state:FSMContext):
+async def start(message: types.Message, state: FSMContext):
     await message.answer(greet_text)
-    user_data = await state.get_data()
-    await state.update_data(msg=
-                            await message.answer('Оценки:\n', reply_markup=numbers_kb))
+    await state.update_data(
+        msg=await message.answer('Оценки:\n', reply_markup=numbers_kb))
     await States.INPUT_GRADES.set()
 
 
@@ -82,17 +91,33 @@ async def cb_input_grades(callback: types.CallbackQuery, state: FSMContext):
         await state.update_data(grades=f'{grades} {callback.data}')
         grades += ' ' + callback.data
         await msg_to_edit.edit_text(pattern.format(get_grades(grades), get_average(grades)),
-                                    reply_markup=numbers_kb)
+                                    reply_markup=numbers_kb, parse_mode='Markdown')
     elif callback.data == 'remove':
         if len(grades) > 1:
             grades = get_grades(" ".join(grades.rsplit()[:-1]))
             await state.update_data(grades=grades)
             await msg_to_edit.edit_text(pattern.format(get_grades(grades), get_average(grades)),
-                                        reply_markup=numbers_kb)
+                                        reply_markup=numbers_kb, parse_mode='Markdown')
         else:
             await remove_all(state, msg_to_edit)
     else:
         await remove_all(state, msg_to_edit)
     await callback.answer()
+
+
+@dp.message_handler(content_types=['photo'], state=States.INPUT_GRADES)
+async def photo_input(photo: types.Message, state: FSMContext):
+    await photo.photo[-1].download(
+        destination_file=path_pattern.format(photo.chat.id))
+
+    user_data = await state.get_data()
+    msg_to_edit = user_data['msg']
+    grades = get_grades_from_photo(path_pattern.format(photo.chat.id))
+
+    await state.update_data(grades=grades)
+    await msg_to_edit.edit_text(pattern.format(get_grades(grades), get_average(grades)),
+                                parse_mode='Markdown', reply_markup=numbers_kb)
+
+    await photo.delete()
 
 executor.start_polling(dispatcher=dp)
