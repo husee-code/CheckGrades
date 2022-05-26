@@ -93,6 +93,6 @@ async def cb_input_grades(callback: types.CallbackQuery, state: FSMContext):
             await remove_all(state, msg_to_edit)
     else:
         await remove_all(state, msg_to_edit)
-        await callback.answer()
+    await callback.answer()
 
 executor.start_polling(dispatcher=dp)
